@@ -1,666 +1,658 @@
-// global
-    const main = document.querySelector("main");
-    let selectedTest;
-    let userAnswers=[];
-    let currentTest;
-    let currentSection;
-    let currentQuestion;
-    let countdown;
-    let confirmationAnswer;
+/**
+ * JFT Simulation - Modern Core Script
+ * Tanpa Bootstrap - Menggunakan CSS Grid/Flexbox
+ * Kompatibel dengan data: SimulationJFT1Questions, dsb.
+ */
 
-    const initApp = () => {
-        showTestList ();
-    }
-    const resetApp = () => {
-        if(confirm("Are you sure you want to exit ?")){
-            main.innerHTML="";
-            selectedTest="";
-            userAnswers=[];
-            currentTest="";
-            currentSection="";
-            currentQuestion="";
-            countdown="";
-            initApp();
-        }
-    }
-    const clearMain = () => {
-        main.innerHTML="";
-    }
-    const findQuestionBySectionAndId = (section,id) => {
-        return currentTest.questions.find(question => (question.section == section) && (question.id == id) );
-    }
-    const findQuestionById = (id) => {
-        return currentTest.questions.find(question =>(question.id == id) );
-    }
-    const finduserAnswersById = (id) => {
-        return userAnswers.find(question =>(question.id == id) );
-    }
-    const isSectionDone = () => {
-        for (let i = 0; i < userAnswers.length; i++) {
-            if(userAnswers[i].section == currentSection){
-                if(userAnswers[i].answer == 0){
-                    return false;
-                }
-            }
-          } 
-        return true;
-    }
-    const setUserAnswer = (element) => {
-        // element is button , value will be use to fill user answer , 
-        // and id will be use to know what question did user answer
-        let questionNumber =  element.id.substring(3, element.id.length);
-        let sectionNumber =  element.id.substring(1,2);
-        let userAnswer = userAnswers.find(item => (item.id == questionNumber) && (item.section == sectionNumber));
-        userAnswer.answer = Number(element.value);
-        let otherAnswer = document.querySelectorAll("#"+element.id);
-        otherAnswer.forEach((answer)=>{
-            answer.className = "list-group-item list-group-item-action";
-        });
-        element.className = "list-group-item list-group-item-action bg-success bg-opacity-75";
-        document.getElementById("nav-"+element.id).classList.add("bg-success","bg-opacity-75");
-    }
-    const showQuestion = (element) => {
-        let question = element.id.substring(7,element.id.length);
-        currentQuestion = findQuestionById(question);
-        document.getElementById("tqa").lastChild.remove();
-        document.getElementById("tqa").appendChild(createTestQA(currentQuestion));
+// --- Global State ---
+let currentTest = null;
+let userAnswers = [];
+let currentQuestionIndex = 0;
+let countdown = null;
+const mainContainer = document.getElementById("app-container");
 
-        let userAnswer = finduserAnswersById(document.getElementById("tqa").lastChild.id.substring(7,element.id.length));
-        if(userAnswer.answer != 0){
-            let nodes = document.querySelectorAll(  "#s"+document.getElementById("tqa").lastChild.id.substring(5,6)+
-                                                    "q"+document.getElementById("tqa").lastChild.id.substring(7,element.id.length));
-            nodes[userAnswer.answer-1].className="list-group-item list-group-item-action bg-success bg-opacity-75";
-        }
+// Mapping Section (JFT-Basic Standard)
+const sectionNames = {
+    1: "Script and Vocabulary",
+    2: "Conversation and Expression",
+    3: "Listening",
+    4: "Reading"
+};
 
-        updateHeaderCurrentQuestion();
-        updateTestFooter();
+/** * 1. FUNGSI FETCH DATA (PENGGANTI POLLING)
+ */
+async function loadTestData(fileName) {
+  console.log(fileName)
+    try {
+        const response = await fetch(`data/${fileName}.json`);
+        if (!response.ok) throw new Error('Gagal memuat file kuis');
+        currentTest = await response.json();
+        startQuiz();
+    } catch (error) {
+        console.error("Error:", error);
+        alert("Maaf, data kuis gagal dimuat.");
     }
-    const showQuestionByID = (questionId) => {
-        currentQuestion = findQuestionById(questionId);
-        document.getElementById("tqa").lastChild.remove();
-        document.getElementById("tqa").appendChild(createTestQA(currentQuestion));
+}
 
-        let userAnswer = finduserAnswersById(questionId);
-        if(userAnswer.answer != 0){
-            let nodes = document.querySelectorAll(  "#s"+document.getElementById("tqa").lastChild.id.substring(5,6)+
-                                                    "q"+questionId);
-            nodes[userAnswer.answer-1].className="list-group-item list-group-item-action bg-success bg-opacity-75";
-        }
+/**
+ * 1. INITIALIZATION
+ */
+const initApp = () => {
+    renderLandingPage();
+};
 
-        updateHeaderCurrentQuestion();
-        updateTestFooter();
-    }
-    const preventOpenedNav = () => {
-        window.onclick=()=>{
-            if(document.getElementById("QANavigation")!=null){
-                if(document.getElementById("QANavigation").className.includes("show")){
-                    document.getElementById("QA-nav-toggle-button").click();
-                }
-            }
-        }
-    }
-    const endSection = () => {
-        if(isSectionDone()){
-            if(currentSection != 4){
-                if( confirm("Are you sure you want to go to the next section ?, you can go back to this saection anymore")){
-                    switch (currentSection){
-                        case 1:
-                            currentSection = Number(currentSection) + 1;
-                            showQuestionByID (16);
-                            break;
-                        case 2:
-                            currentSection = Number(currentSection) + 1;
-                            showQuestionByID (31);
-                            break;
-                        case 3: 
-                            currentSection = Number(currentSection) + 1;
-                            showQuestionByID (41);
-                            break;
-                    }
-                    showSectionNavList(currentSection);
-                }  
-            }else{
-                if( confirm("Are you sure you want to go to end the test?")){
-                    showResult();
-                }  
-            }
-        }else{
-            alert("cant go to the next section, You have to answer all the questions in this section first");
-        }
-    };
-    const showSectionNavList = (sectionId) =>{
-        document.getElementById("Nav-s"+sectionId).classList.add("bg-success","bg-gradient","ps-3");
-        document.getElementById("s"+sectionId+"q").style.display="initial";
-        document.getElementById("s"+(Number(sectionId)-1)+"q").style.display="none";
-        // "Nav-s2" nav  id 
-        // "s2q" next container id 
-        // "s1q" before 
-    }
-    // set up function for audio control
-    const disabledAudio = (el) => { 
-        document.getElementById("QA-nav-toggle-button").disabled=true;
-        document.querySelectorAll("#nav-btn").forEach((item) => {
-            item.disabled=true;
-        });
-        count = Number(el.id);
-        el.style.pointerEvents="none";
+const clearMain = () => {
+    mainContainer.innerHTML = "";
+};
 
-        if(count > 0 ){
-            count -=1;
-            el.id=count.toString();
-            el.nextSibling.innerText = "you can play this audio 1 more times"
-        }else{
-            el.nextSibling.innerText = "you can't play this audio anymore"
-        }
-    }
-    const enabledAudio = (el) => { 
-        document.getElementById("QA-nav-toggle-button").disabled=false;
-        document.querySelectorAll("#nav-btn").forEach((item) => {
-            item.disabled=false;
-        });
-        count = Number(el.id);
+/**
+ * 2. UI RENDERERS (LANDING & SELECTION)
+ */
+const renderLandingPage = () => {
+    clearMain();
+    
+    // Cek data session storage
+    const savedSession = JSON.parse(sessionStorage.getItem('jft_progress'));
+    
+    const hero = document.createElement("div");
+    hero.className = "hero-section";
+    hero.innerHTML = `
+        <h1 class="fade-in">JFT Simulation <span>Modern</span></h1>
+        <p class="fade-in">Tingkatkan skor JFT-Basic Anda dengan simulasi yang presisi dan interaktif.</p>
+    `;
 
-        if(count > 0){
-            el.style.pointerEvents="initial";
-        }else{
-            el.style.pointerEvents="none";
-        }
-    }
-// test list
-    const createTestList = (tests) => {
-        // create container
-        const testListContainer = document.createElement("div");
-        // create title
-        const testListTitle = document.createElement("div");
-        testListTitle.classList.add("mx-auto","border","text-center","my-3","shadow-sm","bg-dark","bg-gradient","rounded","text-light");
-        testListTitle.innerHTML = `
-        <h2>Pick the test to start simulation!</h2>
-        `;
-        // create list
-        const testList = document.createElement("div");
-        testList.classList.add("row","px-3");
-        // create list item
-        let testCard;
-        tests.forEach((test)=>{
-            testCard = document.createElement("div");
-            testCard.classList.add("test-card","rounded","my-1","col");
-            testCard.innerHTML =`
-            <a class="card text-decoration-none text-dark" >
-              <div class="card-body rounded">
-                <h3 class="card-title bg-success bg-opacity-50 p-2 rounded ">${test.name}</h3>
-                <p class="card-text  ">Level ${test.level}</p>
-              </div>
-            </a>
-            `;
-            // add handler
-            testCard.addEventListener("click",function(){showStartConfirmation(test)});
-            testList.appendChild(testCard);
-        });
-        // merge component
-        testListContainer.appendChild(testListTitle);
-        testListContainer.appendChild(testList);
-        return testListContainer;
-    }
-    const showTestList = () => {
-        clearMain();
-        main.appendChild(createTestList(tests));
-        const howtodo = document.createElement("div");
-        howtodo.innerHTML= `
-        <h2 class="text-center my-1">How to use</h2>
-        <img src="./assets/images/howtouse.png" class="img-fluid" alt="Responsive image">
-        `;
-        main.appendChild(howtodo);
-    }
-// test list
+    const grid = document.createElement("div");
+    grid.className = "test-grid";
 
-// start confirmation
-    const createStartConfirmation = () => {
-        // create container
-        const StartConfirmation = document.createElement("div");
-        StartConfirmation.innerHTML=`
-        <div class="position-absolute top-50 start-50 translate-middle rounded" style="width:400px;">
-          <div class="border shadow rounded text-center">
-            <div class="text-white bg-success  rounded-top  py-2">
-             ${currentTest.name} | ${currentTest.level}
-            </div>
-            <button onclick="showTestList()" type="button" class="btn btn-danger my-4">back</button>
-            <button onclick="startTest()" type="button" class="btn btn-primary my-4">Start test</button>
-          </div>
-        </div>
-        `;
-        return StartConfirmation;
-    }
-    const showStartConfirmation = (test) => {
-        currentTest=test;
-        clearMain();
-        main.appendChild(createStartConfirmation());
-    }
-    const inituserAnswers = () => {
-        let temp;
-        for (let i = 0; i < currentTest.questions.length; i++) {
-            temp = {
-                id : currentTest.questions[i].id,
-                section: currentTest.questions[i].section,
-                answer:0
-            }
-            userAnswers.push(temp);
-          }
-    } 
-    const startTest = () => {
-        if(confirm ("Are you ready ?")){
-            inituserAnswers();
-            updateHeaderCountdown();
-            preventOpenedNav();
-            showTest();
-        }
-        // if(confirm ("Are you ready ?") ){
-        // }
-    }
-// start confirmation
+    // Daftar nama file JSON Anda
+    const availableTests = [
+        { id: "simulation-1", title: "Simulation JFT-1" },
+        { id: "simulation-2", title: "Simulation JFT-2" }
+    ];
 
-// test
-    const createTestHeader = () => {
-        // create header
-        const testTestHeader = document.createElement("div");
-        testTestHeader.className="row bg-dark text-white bg-gradient shadow-sm rounded mb-2 py-1";
-        // create current question
-        const testCurrentQuestion = document.createElement("div");
-        testCurrentQuestion.className="col text-start";
-        testCurrentQuestion.innerHTML=`
-        Section <span id="header-current-section">1</span> Question <span id="header-current-question">1</span>
-        `;
-        // create countdown
-        const testCountDown = document.createElement("div");
-        testCountDown.className="col text-center";
-        testCountDown.id="header-countdown";
-        testCountDown.innerHTML=`<i class="fa-solid fa-clock mx-1"></i> 60:00`;
-        // create end button
-        const testEndButton = document.createElement("div");
-        testEndButton.className="col text-center";
-        testEndButton.innerHTML=` <button id="header-end-button" class="btn btn-success" onclick="endSection()">End section</button>`;
-        // merge header
-        testTestHeader.appendChild(testCurrentQuestion);
-        testTestHeader.appendChild(testCountDown);
-        testTestHeader.appendChild(testEndButton);
-        return testTestHeader;
-    }
-    const updateHeaderCurrentQuestion = () => {
-        document.getElementById("header-current-section").innerHTML=currentQuestion.section;
-        document.getElementById("header-current-question").innerHTML=currentQuestion.id;
-    }
-    const updateHeaderCountdown = () => {
-      let countDownDate = addHours(1).getTime();
-      countdown = setInterval(function() {
-        let now = new Date().getTime();
-        let distance = countDownDate - now;
-        let minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        let seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        document.getElementById("header-countdown").innerHTML = `<i class="fa-solid fa-clock mx-1"></i> ${minutes} : ${seconds}`;
-        if (distance < 0) {
-          alert("Times up, test will automativally end!");
-          showResult();
-        }
-      }, 1000);
-    }
-    const addHours = (numOfHours, date = new Date()) => {
-        date.setTime(date.getTime() + numOfHours * 60 * 60 * 1000);
-        return date;
-    }
-    const updateHeaderEndButton = () => {
-        document.getElementById("header-end-button")
-    }
-    const createTestQAContainer = () => {
-        // create container
-        const testQAContainer = document.createElement("div");
-        testQAContainer.classList.add("row");
-        testQAContainer.id= "tqa";
-        testQAContainer.style.minHeight= "600px";
-        testQAContainer.appendChild(createTestQANavigation(currentTest));
-        testQAContainer.appendChild(createTestQA(currentQuestion));
-        return testQAContainer;
-    }
-    const createTestQANavigation = () => {
-        // create container
-        const testQANavigationContainer = document.createElement("div");
-        testQANavigationContainer.classList.add("col-sm-2","my-2")
-        testQANavigationContainer.style.zIndex="999";
-
-        // create toggle button
-        testQANavigationContainer.innerHTML=`
-        <button id="QA-nav-toggle-button" class="btn btn-success" type="button" data-bs-toggle="collapse" data-bs-target="#QANavigation" aria-expanded="false" >
-          <i class="fa-solid fa-table-cells-large"></i>
-        </button>
-        `;
-
-        // create test QA navigation
-        const testQANavigation = document.createElement("div");
-        testQANavigation.className="collapse position-absolute row border bg-light shadow-sm border";
-        testQANavigation.id="QANavigation";
-            // create section list-----------------
-            const testSectionNavList = document.createElement("div");
-            testSectionNavList.className="col-2 border-end p-0";
-            // create section nav
-            let sectionNav;
-            sections.forEach((section)=>{
-                sectionNav = document.createElement("div");
-                sectionNav.className="border-top py-2 ";
-                if(section.id== 1){
-                    sectionNav.classList.add("bg-success","bg-gradient","ps-3");
-                }
-                // done
-                // ="border-top bg-success bg-gradient ps-3"
-                sectionNav.innerText = "S"+section.id;
-                sectionNav.id="Nav-s"+section.id;
-                testSectionNavList.appendChild(sectionNav);
-            });
-
-            // create question list-----------------
-            const testQuestionList = document.createElement("div");
-            testQuestionList.className="col-10 row pb-2";
-            // create question list wrapper
-            let testQuestionListWrapper;
-            let questionNav;
-            sections.forEach((section)=>{
-                testQuestionListWrapper = document.createElement("div");
-                testQuestionListWrapper.className="row my-2 gy-3 gx-2";
-                testQuestionListWrapper.id = `s${section.id}q`;
-                
-                currentTest.questions.forEach((question)=>{
-                    if(section.id == question.section){
-                        testQuestionListWrapper.innerHTML +=`
-                        <button class="btn btn-sm btn-light col-2 border rounded text-center mx-1" 
-                                id="nav-s${section.id}q${question.id}"
-                                onclick="showQuestion(this)">${question.id}
-                        </button>
-                        `;
-
-                    }
-                });
-
-                testQuestionList.appendChild(testQuestionListWrapper);                        
-                if(section.id != 1){
-                    testQuestionListWrapper.style.display="none";
-                }
-            });
-        // merge to container
-        testQANavigation.appendChild(testSectionNavList);
-        testQANavigation.appendChild(testQuestionList);
-        testQANavigationContainer.appendChild(testQANavigation);
-        return testQANavigationContainer;
-    }
-    const shuffle = (array) => {
-        // for (let i = array.length - 1; i > 0; i--) {
-        //     const j = Math.floor(Math.random() * (i + 1));
-        //     const temp = array[i];
-        //     // Swap
-        //     array[i] = array[j];
-        //     array[j] = temp;
-        // }
-        return array;
-    };
-    const createTestQA = (question) => {
-        // create container
-        // 50 soal
-        // s1 15 bb 1  ba 15
-        // s2 15 bb 16 ba 30
-        // s3 10 bb 31 ba 40
-        // s4 10 bb 41 ba 50
-        // 50
-        let buttonDisplayPrev=``;
-        let buttonDisplayNext=``;
-        const noPrev = [1,16,31,41];
-        const noNext = [15,30,40,50];
-        let navPrevAct="";
-        let navNextAct="";
-        for (let i=0; i< 4; i++){
-            navPrevAct = `onclick="showQuestionByID(${Number(question.id)-1})"`;
-            navNextAct = `onclick="showQuestionByID(${Number(question.id)+1})"`;
-            if(question.id == noPrev[i]){
-                buttonDisplayPrev=`style="display:none;"`;
-                navPrevAct = "";
-
-            }
-            if(question.id == noNext[i]){
-                buttonDisplayNext=`style="display:none;"`;
-                navNextAct = "";
-            }
-        }
-        let soundElement='';
-        let imageElement='';
-        if(question.sound!= ""){
-            soundElement=`
-            <div class="text-center">
-            <audio preload="none" controls onplaying="disabledAudio(this)" onended="enabledAudio(this)"  id="2" > 
-                <source src="./assets/sounds/${question.sound}" type="audio/ogg">
-                <source src="./assets/sounds/${question.sound}" type="audio/mpeg">
-                No audio support.
-            </audio><p>Careful!, you can only play this audio for 2 times</p>
-            </div>
-            `;
-
-        }
-        if(question.image  != ""){
-            imageElement=`
-            <div class="text-center">
-            <img class="mx-auto img-fluid"src="./assets/images/${question.image}" style="max-height:200px"/>
-            </div>
-            `;
-        }
-
-
-
-        const testQA = document.createElement("div");
-        testQA.classList.add("col-sm-10")
-        testQA.id=`tqa-s${question.section}q${question.id}`;
-        console.log(shuffle(question.answers));
-        testQA.innerHTML=`
-        <div class="row bg-light bg-gradient border shadow-sm  text-start p-2 mb-2">
-            ${soundElement}
-            <hr>
-            ${question.text}
-            <hr>
-            ${imageElement}
-        </div>
+    // 'tests' berasal dari jft-main-db.js
+    availableTests.forEach((test) => {
+        // Cek apakah paket ini yang sedang tersimpan sesinya
+        const isContinuing = savedSession && savedSession.testId === test.title;
         
-        <div class="row bg-light bg-gradient shadow-sm list-group rounded-0 mb-2">
-        <button id="s${question.section}q${question.id}" type="button" class="list-group-item list-group-item-action" value="${1}" onclick="setUserAnswer(this)">${question.answers[0].text}</button>
-        <button id="s${question.section}q${question.id}" type="button" class="list-group-item list-group-item-action" value="${2}" onclick="setUserAnswer(this)">${question.answers[1].text}</button>
-        <button id="s${question.section}q${question.id}" type="button" class="list-group-item list-group-item-action" value="${3}" onclick="setUserAnswer(this)">${question.answers[2].text}</button>
-        <button id="s${question.section}q${question.id}" type="button" class="list-group-item list-group-item-action" value="${4}" onclick="setUserAnswer(this)">${question.answers[3].text}</button>
+        const card = document.createElement("div");
+        card.className = `card test-card fade-in ${isContinuing ? 'has-session' : ''}`;
+        card.innerHTML = `
+            <div class="card-tag">${isContinuing ? 'Sedang Berjalan' : 'A2 Level'}</div>
+            <h3>${test.title}</h3>
+            <div class="btn-group-vertical">
+                <button class="btn ${isContinuing ? 'btn-warning' : 'btn-primary'}" 
+                        onclick="confirmStart('${test.title}')">
+                    ${isContinuing ? '<i class="fa-solid fa-play"></i> Lanjutkan Sesi' : 'Pilih Paket'}
+                </button>
+                ${isContinuing ? `
+                    <button class="btn btn-link-danger" onclick="resetSessionManual('${test.title}')" style="margin-top:10px; font-size:0.8rem;">
+                        <i class="fa-solid fa-rotate-right"></i> Ulang dari Awal
+                    </button>
+                ` : ''}
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+
+    mainContainer.appendChild(hero);
+    mainContainer.appendChild(grid);
+};
+
+const confirmStart = (index) => {
+    // currentTest = tests[index];
+    //currentTest = index;
+    clearMain();
+
+    const conf = document.createElement("div");
+    conf.className = "card confirmation-card fade-in";
+    conf.innerHTML = `
+        <h2>Instruksi Ujian</h2>
+        <div class="instruction-list">
+            <div class="ins-item"><i class="fa-solid fa-check"></i> Waktu pengerjaan adalah 60 menit.</div>
+            <div class="ins-item"><i class="fa-solid fa-check"></i> Anda tidak bisa kembali ke sesi sebelumnya setelah dikunci.</div>
+            <div class="ins-item"><i class="fa-solid fa-check"></i> Pastikan audio Anda terdengar jelas untuk sesi Listening.</div>
         </div>
-        `;
-        // for (var i = 0; i <4 ; i++){
-        //     testQA.innerHTML+=`<button id="s${question.section}q${question.id}" type="button" class="list-group-item list-group-item-action" value="${i+1}" onclick="setUserAnswer(this)">${question.answers[i].text}</button>`;
-        //     if(i==3){
-        //         testQA.innerHTML+="</div>";
-        //     }
-        // }
+        <div class="btn-group">
+            <button class="btn btn-outline" onclick="renderLandingPage()">Kembali</button>
+            <button class="btn btn-primary" onclick="loadTestData('${index}')">Saya Mengerti, Mulai</button>
+        </div>
+    `;
+    mainContainer.appendChild(conf);
+};
 
-        // <div class="row p-5">
-        // <div class="col-6 text-start">
-        //   <button id="nav-btn" class="btn btn-success" ${navPrevAct} ${buttonDisplayPrev}><i class="fa-solid fa-chevron-left"></i></button>
-        // </div>
-        // <div class="col-6 text-end">
-        //   <button id="nav-btn"  class="btn btn-success" ${navNextAct} ${buttonDisplayNext}><i class="fa-solid fa-chevron-right"></i></button>
-        // </div>
-        // </div>
-        return testQA;
+/**
+ * 3. QUIZ CORE LOGIC
+ */
+/**
+ * 3. QUIZ CORE LOGIC (WITH SECTION SHUFFLE)
+ */
+const startQuiz = () => {
+    // Cek apakah ada progres tersimpan
+    const hasProgress = loadProgress();
+    // 1. Kelompokkan soal berdasarkan section (1-4)
+    const sections = { 1: [], 2: [], 3: [], 4: [] };
+    currentTest.questions.forEach(q => {
+        if (sections[q.section]) {
+            sections[q.section].push(q);
+        }
+    });
+
+    // 2. Shuffle soal di dalam masing-masing section
+    // 3. Gabungkan kembali menjadi satu array berurutan: Sec 1 -> Sec 2 -> Sec 3 -> Sec 4
+    let shuffledQuestions = [];
+    for (let i = 1; i <= 4; i++) {
+        const shuffledGroup = shuffleArray(sections[i]);
+        shuffledQuestions = [...shuffledQuestions, ...shuffledGroup];
     }
-    const createTestFooter = () => {
-        // create header
-        const TestFooter = document.createElement("div");
-        TestFooter.className="row bg-dark text-white bg-gradient shadow-sm rounded mb-2 py-1";
-        TestFooter.innerHTML = `
-        <div class="row mx-auto" id="test-footer">
-            <div class="col-6 text-start">
-                <button id="nav-btn" class="btn btn-success" navPrevAct buttonDisplayPrev ><i class="fa-solid fa-chevron-left"></i></button>
+
+    // 4. Timpa data soal asli dengan yang sudah di-shuffle (per section)
+    currentTest.questions = shuffledQuestions;
+
+    // 5. Inisialisasi jawaban kosong
+    const saved = sessionStorage.getItem('jft_progress');
+    let timeLimit = 3600; // Default 60 menit
+
+    if (saved) {
+        const data = JSON.parse(saved);
+        if (data.testId === currentTest.name) {
+            userAnswers = data.answers; //
+            currentQuestionIndex = data.currentIndex; //
+            timeLimit = data.remainingTime; // Gunakan sisa waktu tersimpan
+        }
+    } else {
+        // Jika tidak ada, buat inisialisasi baru seperti biasa
+        userAnswers = currentTest.questions.map(q => ({
+            id: q.id,
+            section: q.section,
+            answer: null,
+            visited: false
+        }));
+        currentQuestionIndex = 0;
+    }
+
+    //currentQuestionIndex = 0;
+    renderQuizInterface();
+    startTimer(timeLimit); // 60 Menit
+};
+
+/**
+ * Fungsi pembantu untuk mengacak array (Fisher-Yates Shuffle)
+ */
+function shuffleArray(array) {
+    let currentIndex = array.length, randomIndex;
+    while (currentIndex != 0) {
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]];
+    }
+    return array;
+}
+
+
+const renderQuizInterface = () => {
+    clearMain();
+
+    // Top Bar (Timer & Progress)
+    const topBar = document.createElement("div");
+    topBar.className = "quiz-header no-print";
+    topBar.innerHTML = `
+        <div class="header-left">
+            <span class="test-name-label">${currentTest.name}</span>
+            <span class="section-badge" id="section-label">Section 1</span>
+        </div>
+        <div class="timer-display" id="main-timer">00:00</div>
+        <button class="btn btn-danger" onclick="handleFinishSession()">Kunci Sesi</button>
+    `;
+    
+    // Tambahkan Progress Bar tepat di bawah Top Bar
+    const progressBar = document.createElement("div");
+    progressBar.className = "progress-container no-print";
+    progressBar.innerHTML = `<div class="progress-fill" id="quiz-progress"></div>`;
+
+
+    // Main Content (Question & Nav)
+    const quizBody = document.createElement("div");
+    quizBody.className = "quiz-body";
+    
+    const questionArea = document.createElement("div");
+    questionArea.id = "question-display-area";
+    questionArea.className = "question-area";
+
+    const sidebar = document.createElement("div");
+    sidebar.className = "quiz-sidebar no-print";
+    sidebar.innerHTML = `
+        <div class="sidebar-title">Nomor Soal</div>
+        <div class="q-navigation-grid" id="q-nav"></div>
+    `;
+
+    quizBody.appendChild(questionArea);
+    quizBody.appendChild(sidebar);
+
+    mainContainer.appendChild(topBar);
+    mainContainer.appendChild(progressBar); // Masukkan progress bar ke main
+    mainContainer.appendChild(quizBody);
+
+    updateQuestionDisplay();
+    renderNavigationGrid();
+    updateProgressBar(); // Panggil fungsi update pertama kali
+};
+
+/**
+ * 4. QUESTION DISPLAY LOGIC
+ */
+const updateQuestionDisplay = () => {
+    const area = document.getElementById("question-display-area");
+    // Memberikan efek animasi "reset" setiap ganti soal
+    //area.style.animation = 'none';
+    //area.offsetHeight; /* trigger reflow */
+    //area.style.animation = null; 
+    //area.classList.add('fade-in');
+    
+       // Animasi fade hanya saat ganti soal
+    area.classList.remove('fade-in');
+    void area.offsetWidth; // Trigger reflow agar animasi bisa mulai lagi
+    area.classList.add('fade-in');
+    
+    
+    const q = currentTest.questions[currentQuestionIndex];
+    const uAns = userAnswers[currentQuestionIndex];
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Update Section Label
+    document.getElementById("section-label").innerText = sectionNames[q.section];
+    
+    let mediaHTML = "";
+    if (q.sound) {
+        mediaHTML += `
+            <div class="audio-container card">
+                <p><i class="fa-solid fa-volume-up"></i> Sesi Listening</p>
+                <audio controls src="./assets/sounds/${q.sound}"></audio>
             </div>
-            <div class="col-6 text-end">
-                <button id="nav-btn"  class="btn btn-success" navNextAct buttonDisplayNext ><i class="fa-solid fa-chevron-right"></i></button>
+        `;
+    }
+    if (q.image) {
+        mediaHTML += `
+            <div class="image-container">
+                <img src="./assets/images/${q.image}" class="img-fluid" alt="Soal ${q.id}">
+            </div>
+        `;
+    }
+
+    // Bagian di dalam updateQuestionDisplay
+    area.innerHTML = `
+        <div class="question-card fade-in">
+            <div class="q-number" style="font-weight:bold; margin-bottom:10px; color:var(--text-light)">
+                Soal #${currentQuestionIndex + 1}
+            </div>
+            ${mediaHTML}
+            <div class="q-text" style="font-size:1.2rem; margin-bottom:1.5rem;">${q.text}</div>
+            
+            <div class="options-grid">
+                ${q.answers.map((ans, idx) => `
+                    <div class="option-card ${uAns.answer === idx ? 'selected' : ''}" 
+                         onclick="recordAnswer(${idx})">
+                        <span class="opt-index">${String.fromCharCode(65 + idx)}</span>
+                        <span class="opt-text">${ans.text}</span>
+                    </div>
+                `).join('')}
+            </div>
+    
+            <div class="nav-controls no-print">
+                <button class="btn btn-outline" ${currentQuestionIndex === 0 ? 'disabled' : ''} onclick="navigate(-1)">
+                    <i class="fa-solid fa-chevron-left"></i> Sebelumnya
+                </button>
+                <button class="btn btn-outline" ${currentQuestionIndex === currentTest.questions.length - 1 ? 'disabled' : ''} onclick="navigate(1)">
+                    Berikutnya <i class="fa-solid fa-chevron-right"></i>
+                </button>
             </div>
         </div>
+    `;
+    
+    uAns.visited = true;
+    renderNavigationGrid();
+};
+
+const recordAnswer = (index) => {
+    // Simpan jawaban
+    userAnswers[currentQuestionIndex].answer = index;
+
+    // Update tampilan pilihan secara instan tanpa re-render seluruh area
+    const options = document.querySelectorAll('.option-card');
+    options.forEach((card, i) => {
+        if (i === index) {
+            card.classList.add('selected');
+        } else {
+            card.classList.remove('selected');
+        }
+    });
+    
+    // Update navigasi di sidebar
+    renderNavigationGrid();
+    saveProgress(); // Simpan setiap kali menjawab
+    updateProgressBar(); // Tambahkan ini agar bar bergerak
+};
+
+const updateProgressBar = () => {
+    const progressFill = document.getElementById("quiz-progress");
+    if (!progressFill) return;
+
+    const totalQuestions = userAnswers.length;
+    const answeredCount = userAnswers.filter(ans => ans.answer !== null).length;
+    const percentage = (answeredCount / totalQuestions) * 100;
+
+    progressFill.style.width = `${percentage}%`;
+};
+
+
+const navigate = (step) => {
+    currentQuestionIndex += step;
+    updateQuestionDisplay();
+};
+
+const jumpToQuestion = (index) => {
+    currentQuestionIndex = index;
+    updateQuestionDisplay();
+};
+
+const renderNavigationGrid = () => {
+    const navGrid = document.getElementById("q-nav");
+    if (!navGrid) return;
+
+    navGrid.innerHTML = userAnswers.map((ans, idx) => {
+        // Tambahkan class khusus berdasarkan section (opsional untuk styling)
+        const sectionClass = `sec-color-${ans.section}`;
+        return `
+            <div class="nav-item ${ans.answer !== null ? 'answered' : ''} ${currentQuestionIndex === idx ? 'current' : ''} ${sectionClass}" 
+                 onclick="jumpToQuestion(${idx})">
+                ${idx + 1}
+            </div>
         `;
-        return TestFooter;
-    }
-    const updateTestFooter = () => {
-        question =  currentQuestion;
-        const noPrev = [1,16,31,41];
-        const noNext = [15,30,40,50];
-        let navPrevAct="";
-        let navNextAct="";
-        let buttonDisplayPrev="";
-        let buttonDisplayNext="";
-        for (let i=0; i< 4; i++){
-            navPrevAct = `onclick="showQuestionByID(${Number(question.id)-1})"`;
-            navNextAct = `onclick="showQuestionByID(${Number(question.id)+1})"`;
-            if(question.id == noPrev[i]){
-                buttonDisplayPrev=`style="display:none;"`;
-                navPrevAct = "";
-            }
-            if(question.id == noNext[i]){
-                buttonDisplayNext=`style="display:none;"`;
-                navNextAct = "";
-            }
-        }
-        document.getElementById("test-footer").innerHTML = `
-        <div class="row mx-auto" id="test-footer">
-            <div class="col-6 text-start">
-                <button id="nav-btn" class="btn btn-success" ${navPrevAct} ${buttonDisplayPrev} ><i class="fa-solid fa-chevron-left"></i></button>
-            </div>
-            <div class="col-6 text-end">
-                <button id="nav-btn"  class="btn btn-success" ${navNextAct} ${buttonDisplayNext} ><i class="fa-solid fa-chevron-right"></i></button>
-            </div>
-        </div>`;
-    }
-    const createTest = () => {
-        // create container
-        const testTestContainer = document.createElement("div");
-        testTestContainer.classList.add("test","mb-2")
-        testTestContainer.appendChild(createTestHeader());
-        testTestContainer.appendChild(document.createElement("hr"));
-        testTestContainer.appendChild(createTestQAContainer());
-        testTestContainer.appendChild(createTestFooter());
-        return testTestContainer;
-    }
-    const showTest = () => {
-        currentSection = 1;
-        currentQuestion = findQuestionById(1);
-        clearMain();
-        main.appendChild(createTest());
-        updateTestFooter();
-    }
-// test
+    }).join('');
+};
 
-// result
-    const getSectionScore = (sectionId) => {
-        let result=0;
-        console.log(currentTest)
-        console.log(userAnswers)
-        for (let i = 0; i <userAnswers.length;i++){
-            if (userAnswers[i].section==sectionId){
-                if(currentTest.questions[i].keyid == userAnswers[i].answer-1){
-                    result++;
-                }
-            }
-        }
-        switch (sectionId){
-            case 1: 
-                result =  (result * 4.4) - 1;
-                break;
-            case 2: 
-                result =  (result * 4.4) - 1;
-                break;
-            case 3: 
-                result =  (result * 6) ;
-                break;
-            case 4: 
-                result =  (result * 6) ;
-                break;
-        }
-        if(result<0){
-            result = 0;
-        }
-        return result;
-    } 
-    const getTotalScore = () => {
-        let result=0;
-        for (let i = 1; i < 5;i++){
-            result += getSectionScore(i);
-        }
-        return result;
-    } 
-    const evaluateTest = () => {
-        let isPassed=false;
-        totalResult = getTotalScore ();
-        if(totalResult > 200) {
-            isPassed=true;
-        }
-        return isPassed;
-    } 
-    const createResult = () => {
-        const resultContainer = document.createElement("div");
-        resultContainer.className="result w-75 mx-auto border shadow-sm p-3";
-        let sectionResults = [];
-        for (let i = 1; i < 5;i++){
-            sectionResults.push(Number(getSectionScore(i).toFixed(0))); 
-        }
-        let message;
-        if(evaluateTest()){
-            message = `<span class="badge text-bg-success bg-gradient shadow-sm fs-2 p-print">PASSED</span>`;
-        }else{
-            message = `<span class="badge text-bg-danger bg-gradient shadow-sm fs-2 f-print">FAILED</span>`;
-        }
-        resultContainer.innerHTML=`
-          <div class="row text-center">
-            ${message}
-          </div>
-          <hr>
 
-          <div class="row">
-            <div class="col my-1 mx-auto text-center fw-bold">
-                (Passing grade 200 Points) </br>
-                Total : <span class="fw-bolder fs-1"> ${Number(getTotalScore().toFixed(0))} </span> Points
-            </div>
-          </div>
-          <hr>
+/**
+ * 5. TIMER & END LOGIC
+ */
+const startTimer = (seconds) => {
+    let time = seconds;
+    const timerEl = document.getElementById("main-timer"); //
+    
+    countdown = setInterval(() => {
+        time--;
+        let mins = Math.floor(time / 60);
+        let secs = time % 60;
+        timerEl.innerText = `${mins}:${secs < 10 ? '0' + secs : secs}`;
 
-          <div class="row">
-            <div class="col-lg-3 my-2 border-start">
-                <p> Section ${sections[0].id} - ${sections[0].name}:</p>
-                <span class="ms-5"> ${sectionResults[0]} Points</span>
-            </div>
-            <div class="col-lg-3 my-2 border-start">
-                <p> Section ${sections[1].id} - ${sections[1].name}:</p>
-                <span class="ms-5"> ${sectionResults[1]} Points</span>
-            </div>
-            <div class="col-lg-3 my-2 border-start">
-                <p> Section ${sections[2].id} - ${sections[2].name}:</p>
-                <span class="ms-5"> ${sectionResults[2]} Points</span>
-            </div>
-            <div class="col-lg-3 my-2 border-start border-end">
-                <p> Section ${sections[3].id} - ${sections[3].name}:</p>
-                <span class="ms-5"> ${sectionResults[3]} Points</span>
-            </div>
-          </div>
-          <hr>
-          <div class="row mx-auto text-center no-print">
-            <button class=" col btn btn-primary mx-4 my-2" onclick="window.print()"> print <i class="fa-solid fa-print ms-2"></i> </button>
-            <button class=" col btn btn-primary mx-4 my-2" onclick="resetApp()"> exit  
-            <i class="fa-solid fa-arrow-right-from-bracket ms-2"></i></button>
-          </div>
+        // Simpan sisa waktu ke storage setiap 5 detik (agar tidak terlalu berat)
+        if (time % 5 === 0) saveProgress(time);
 
+        if (time < 300) timerEl.style.color = "#ef4444"; //
+        
+        if (time <= 0) {
+            clearInterval(countdown);
+            showFinalResult(); //
+        }
+    }, 1000);
+};
+
+const resetSessionManual = (testTitle) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus progres di ${testTitle} dan mengulang dari awal?`)) {
+        sessionStorage.removeItem('jft_progress');
+        renderLandingPage(); // Refresh tampilan menu utama
+    }
+};
+
+const handleFinishSession = () => {
+    const unanswered = userAnswers.filter(a => a.answer === null).length;
+    let msg = "Apakah Anda yakin ingin menyelesaikan simulasi?";
+    if (unanswered > 0) msg += `\n(Ada ${unanswered} soal yang belum dijawab)`;
+
+    if (confirm(msg)) {
+        showFinalResult();
+    }
+};
+
+/**
+ * 6. SCORING & RESULTS
+ */
+const showFinalResult = () => {
+    clearInterval(countdown);
+    sessionStorage.removeItem('jft_progress'); // Hapus saat ujian berakhir
+    clearMain();
+
+    // Hitung Skor per Seksi
+    const sectionScores = [1, 2, 3, 4].map(sId => {
+        const qInSec = currentTest.questions.filter(q => q.section === sId);
+        let correct = 0;
+        
+        qInSec.forEach(q => {
+            const uAns = userAnswers.find(ua => ua.id === q.id);
+            if (uAns && uAns.answer === q.keyid) correct++;
+        });
+
+        // Logika skor JFT (4.4 per soal di Sec 1-2, 6 per soal di Sec 3-4)
+        let weighted = (sId <= 2) ? (correct * 4.4) : (correct * 6);
+        return {
+            id: sId,
+            name: sectionNames[sId],
+            correct: correct,
+            totalQ: qInSec.length,
+            points: Math.round(weighted)
+        };
+    });
+
+    const totalPoints = sectionScores.reduce((a, b) => a + b.points, 0);
+    const passed = totalPoints >= 200;
+
+    const resultPage = document.createElement("div");
+    resultPage.className = "result-container fade-in";
+        const today = new Date().toLocaleDateString('id-ID', { 
+        day: 'numeric', month: 'long', year: 'numeric' 
+    });
+
+    resultPage.innerHTML = `
+        <div class="result-container fade-in">
+            <div class="result-card card">
+                <div class="result-header">
+                    <div class="no-print status-icon ${passed ? 'pass' : 'fail'}" style="font-size: 3rem; margin-bottom: 1rem;">
+                        <i class="fa-solid ${passed ? 'fa-circle-check' : 'fa-circle-xmark'}" style="color: ${passed ? '#10b981' : '#ef4444'}"></i>
+                    </div>
+                    <h1 style="margin-bottom: 0.5rem;">${passed ? 'LULUS' : 'TIDAK LULUS'}</h1>
+                    <p style="color: var(--text-light); margin-bottom: 1.5rem;">Dikeluarkan pada: ${today}</p>
+                    <div class="total-score" style="font-size: 3rem; font-weight: 700; color: var(--primary);">
+                        ${totalPoints} <span style="font-size: 1.5rem; color: var(--text-light);">/ 250</span>
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 2rem 0;">
+
+                <div class="score-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    ${sectionScores.map(s => `
+                        <div class="score-item" style="padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <label style="display: block; font-size: 0.8rem; color: var(--text-light);">${s.name}</label>
+                            <div class="score-val" style="font-size: 1.2rem; font-weight: bold;">${s.points} Pts</div>
+                            <small>${s.correct}/${s.totalQ} Jawaban Benar</small>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="result-actions no-print" style="margin-top: 2.5rem; display: flex; gap: 10px; justify-content: center;">
+                    <button class="btn btn-primary" onclick="renderReviewPage()">Review Jawaban</button>
+                    <button class="btn btn-outline" onclick="window.print()">
+                        <i class="fa-solid fa-print"></i> Cetak Hasil
+                    </button>
+                    <button class="btn btn-outline" onclick="location.reload()">Selesai</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+
+    mainContainer.appendChild(resultPage);
+};
+
+const renderReviewPage = () => {
+    clearMain();
+    
+    const reviewContainer = document.createElement("div");
+    reviewContainer.className = "review-container fade-in";
+    
+    // --- 1. Hitung Statistik Per Section ---
+    const stats = [1, 2, 3, 4].map(sId => {
+        const questionsInSec = currentTest.questions.filter(q => q.section === sId);
+        const correctCount = questionsInSec.filter(q => {
+            const uAns = userAnswers.find(ua => ua.id === q.id);
+            return uAns && uAns.answer === q.keyid;
+        }).length;
+        
+        const total = questionsInSec.length;
+        const percentage = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+        
+        return {
+            id: sId,
+            name: sectionNames[sId],
+            correct: correctCount,
+            total: total,
+            percent: percentage
+        };
+    });
+
+    // --- 2. Header & Bar Statistik ---
+    let headerHTML = `
+        <div class="review-header card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin:0;">Review & Statistik</h2>
+                <button class="btn btn-primary" onclick="location.reload()">Selesai & Kembali</button>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                ${stats.map(s => `
+                    <div class="stat-box" style="padding: 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0;">
+                        <small style="display: block; color: var(--text-light); font-size: 0.75rem;">${s.name}</small>
+                        <div style="font-weight: bold; font-size: 1.1rem; color: ${s.percent >= 80 ? '#10b981' : '#f59e0b'}">${s.percent}%</div>
+                        <div style="width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; margin-top: 5px; overflow: hidden;">
+                            <div style="width: ${s.percent}%; height: 100%; background: ${s.id === 1 ? '#3b82f6' : s.id === 2 ? '#f59e0b' : s.id === 3 ? '#8b5cf6' : '#ec4899'}"></div>
+                        </div>
+                        <small style="font-size: 0.7rem;">${s.correct}/${s.total} Benar</small>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    // --- 3. Pemisahan Soal (Salah vs Benar) ---
+    const incorrectQuestions = [];
+    const correctQuestions = [];
+
+    currentTest.questions.forEach((q, idx) => {
+        const uAns = userAnswers.find(ua => ua.id === q.id);
+        const isCorrect = uAns && uAns.answer === q.keyid;
+        const questionData = { ...q, originalIndex: idx + 1, userResponse: uAns };
+        
+        if (isCorrect) correctQuestions.push(questionData);
+        else incorrectQuestions.push(questionData);
+    });
+
+    const sortedQuestions = [...incorrectQuestions, ...correctQuestions];
+    let reviewHTML = headerHTML;
+
+    // --- 4. Render Soal (Urutan: Salah -> Benar) ---
+    sortedQuestions.forEach((q) => {
+        const isCorrect = q.userResponse && q.userResponse.answer === q.keyid;
+        const sColor = q.section === 1 ? '#3b82f6' : q.section === 2 ? '#f59e0b' : q.section === 3 ? '#8b5cf6' : '#ec4899';
+        
+        reviewHTML += `
+            <div class="question-card card" style="margin-bottom: 1.5rem; border-left: 6px solid ${isCorrect ? '#10b981' : '#ef4444'}">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="background: ${sColor}15; color: ${sColor}; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">
+                        ${sectionNames[q.section]}
+                    </span>
+                    <span style="font-weight: bold; font-size: 0.85rem; color: ${isCorrect ? '#10b981' : '#ef4444'}">
+                        ${isCorrect ? '<i class="fa-solid fa-check-circle"></i> Benar' : '<i class="fa-solid fa-circle-xmark"></i> Salah'}
+                    </span>
+                </div>
+                
+                <div class="q-text" style="margin-top: 15px; font-size: 1.05rem;">
+                    <strong>Soal #${q.originalIndex}:</strong> ${q.text}
+                </div>
+                
+                ${q.image ? `<img src="./assets/images/${q.image}" style="max-width:100%; max-height: 250px; margin: 15px 0; border-radius: 8px;">` : ''}
+
+                <div style="margin-top: 15px; display: grid; gap: 8px;">
+                    ${q.answers.map((ans, aIdx) => {
+                        let bgColor = "transparent";
+                        let borderColor = "#e2e8f0";
+                        let icon = "";
+
+                        if (aIdx === q.keyid) {
+                            bgColor = "#d1fae5"; 
+                            borderColor = "#10b981";
+                            icon = '<i class="fa-solid fa-check-circle" style="float: right;"></i>';
+                        } else if (q.userResponse && aIdx === q.userResponse.answer && !isCorrect) {
+                            bgColor = "#fee2e2"; 
+                            borderColor = "#ef4444";
+                            icon = '<i class="fa-solid fa-circle-xmark" style="float: right;"></i>';
+                        }
+                        
+                        return `
+                            <div style="padding: 10px 15px; border-radius: 10px; border: 2px solid ${borderColor}; background: ${bgColor}; font-size: 0.95rem;">
+                                <span style="font-weight: bold; margin-right: 8px;">${String.fromCharCode(65 + aIdx)}</span> 
+                                ${ans.text} ${icon}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
         `;
-        return resultContainer;
-    }
-    const showResult = () => {
-        clearInterval(countdown);
-        clearMain();
-        main.appendChild(createResult());
-    }
-// result
+    });
 
-// global
-    initApp();
-    window.onbeforeunload = function() {
-        return "your data will not be saved, aru you sure you want to leave?";
+    reviewContainer.innerHTML = reviewHTML;
+    mainContainer.appendChild(reviewContainer);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+const saveProgress = (currentTime) => {
+    const progressData = {
+        testId: currentTest.name, //
+        answers: userAnswers, //
+        currentIndex: currentQuestionIndex, //
+        remainingTime: currentTime // Simpan sisa detik terakhir
+    };
+    sessionStorage.setItem('jft_progress', JSON.stringify(progressData));
+};
+
+
+const loadProgress = () => {
+    const saved = sessionStorage.getItem('jft_progress');
+    if (saved) {
+        const data = JSON.parse(saved);
+        
+        // Pastikan paket yang dimuat sama dengan yang sedang dikerjakan
+        if (data.testId === currentTest.name) {
+            userAnswers = data.answers;
+            currentQuestionIndex = data.currentIndex;
+            return true;
+        }
     }
+    return false;
+};
+
+
+
+// Tambahkan di bagian paling bawah script.js
+window.addEventListener('scroll', () => {
+    const header = document.querySelector('.main-header');
+    if (window.scrollY > 10) {
+        header.classList.add('scrolled');
+    } else {
+        header.classList.remove('scrolled');
+    }
+});
+
+
+// Start the app
+initApp();

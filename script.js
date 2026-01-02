@@ -67,7 +67,11 @@ const renderLandingPage = () => {
     // Daftar nama file JSON Anda
     const availableTests = [
         { id: "simulation-1", title: "Simulation JFT-1" },
-        { id: "simulation-2", title: "Simulation JFT-2" }
+        { id: "simulation-2", title: "Simulation JFT-2" },
+        { id: "simulation-3", title: "Simulation JFT-3" },
+        { id: "simulation-4", title: "Simulation JFT-4" },
+        { id: "simulation-5", title: "Simulation JFT-5" },
+        { id: "simulation-6", title: "Simulation JFT-6" }
     ];
 
     // 'tests' berasal dari jft-main-db.js
